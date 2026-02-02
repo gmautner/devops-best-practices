@@ -1,5 +1,41 @@
 # Melhoras práticas de DevOps
 
+## Índice
+
+- [Melhoras práticas de DevOps](#melhoras-práticas-de-devops)
+  - [Índice](#índice)
+  - [Introdução](#introdução)
+  - [IaC](#iac)
+    - [IaC e CI/CD](#iac-e-cicd)
+    - [Segurança do State File Terraform](#segurança-do-state-file-terraform)
+  - [Ambientes](#ambientes)
+  - [Containers](#containers)
+    - [Versionamento e tags](#versionamento-e-tags)
+    - [Opções para runtime de containers](#opções-para-runtime-de-containers)
+    - [Segurança de containers](#segurança-de-containers)
+    - [Registry](#registry)
+  - [Testes automatizados](#testes-automatizados)
+  - [Segredos](#segredos)
+  - [DR (Disaster Recovery)](#dr-disaster-recovery)
+    - [Bancos de dados](#bancos-de-dados)
+    - [File systems](#file-systems)
+    - [Object storage](#object-storage)
+    - [Drills de recuperação](#drills-de-recuperação)
+  - [Escalabilidade](#escalabilidade)
+    - [Escalabilidade de bancos de dados](#escalabilidade-de-bancos-de-dados)
+  - [Monitoração](#monitoração)
+    - [Métricas](#métricas)
+    - [Logs](#logs)
+    - [Traces](#traces)
+    - [Alertas](#alertas)
+    - [Dashboard](#dashboard)
+    - [Stack convencional](#stack-convencional)
+
+
+## Introdução
+
+Este é um resumo do meu aprendizado de melhores práticas para DevOps, baseado na minha experiência prática e aprendizado de campo.
+
 ## IaC
 
 Toda a infraestrutura deve poder ser recriada do zero a partir de código, garantindo que seja idêntica à existente.
@@ -8,7 +44,7 @@ Terraform é a ferramenta recomendada. Motivo: maior ecossistema, com maior cobe
 
 O código IaC deve ser mantido em um repositório Git. Isto garante rastreabilidade de mudanças.
 
-Opção: GitOps. Caso seja usado Kubernetes, parte do IaC deve residir em arquivos mantidos em Git e sincronizados com o cluster através de ferramentas de GitOps como Argo CD ou Flux.
+Opção: GitOps. Caso seja usado Kubernetes, parte do IaC deve residir em arquivos mantidos em Git, que descrevem o estado desejado em YAML, e sincronizados com o cluster através de ferramentas de GitOps como Argo CD ou Flux.
 
 Todo o código IaC (Terraform, manifestos GitOps, etc.) deve ser mantido em repositórios Git separados do código da aplicação.
 
@@ -139,3 +175,60 @@ Deve-se usar a arquitetura [12 Factor App](https://12factor.net/) para garantir 
 ### Escalabilidade de bancos de dados
 
 Para bancos de dados, usar réplicas de leitura para distribuir a carga. Quando se tornar necessário, usar componentes de otimização de conexão, como [PgBouncer](https://www.pgbouncer.org/) para PostgreSQL ou [ProxySQL](https://proxysql.com/) para MySQL.
+
+Tais ferramentas devem ser configuradas via [IaC](#iac) usando os recursos do provedor de cloud ou, se rodando bancos de dados em clusters Kubernetes, via GitOps, por intermédio de controladores como [CloudNativePG](https://cloudnative-pg.io/).
+
+## Monitoração
+
+O stack de monitoração deve incluir:
+
+- Métricas
+- Logs
+- Traces
+- Alertas
+- Dashboards
+
+### Métricas
+
+Métricas são indicadores como CPU, memória, requests por segundo, etc. que são exportadas em amostras temporais para posterior análise, visualização em gráficos e disparos de alertas.
+
+Deve-se configurar, via [IaC](#iac), a exposição de métricas usando capacidades nativas do provedor de cloud juntamente com métricas expostas pela aplicação. Métricas devem ser expostas em um padrão como Prometheus ou OpenTelemetry.
+
+### Logs
+
+Configurar a aplicação para exportar logs via `stdout` e `stderr` em consonância com [12 Factor App](https://12factor.net/logs). A infraestrutura deve automaticamente capturar e processar tais logs de forma transparente para a aplicação.
+
+### Traces
+
+Traces são usados para mapear requsições à medida que elas fluem através dos diferentes componentes da aplicação e bancos de dados.
+
+Deve-se configurar, via [IaC](#iac), a captura e processamento de traces usando capacidades nativas do provedor de cloud juntamente com traces expostas pela aplicação. Traces devem ser expostas em um padrão como OpenTelemetry.
+
+### Alertas
+
+A configuração de alertas deve ser feita via [IaC](#iac) usando capacidades nativas do provedor de cloud juntamente com alertas expostos pela aplicação. 
+
+Tal configuração deve incluir os canais desejados para recebimento de alertas de acordo com a ferramenta em uso pela empresa, como Slack, Teams, etc. e devem ser disponibilizados também pelo Dashboard de monitoração.
+
+### Dashboard
+
+Um dashboard de monitoração deve ser disponibilizado para visualização dos diferentes indicadores de monitoração. O padrão universal é o [Grafana](https://grafana.com/).
+
+### Stack convencional
+
+Recomenda-se usar as ferramentas mais maduras e consolidadas. Um exemplo de stack "cloud-native" para uso em Kubernetes:
+
+- Prometheus para métricas
+- Alertmanager para alertas
+- Grafana para dashboards
+- Loki para logging
+- Tempo para traces
+
+Provedores de cloud geralmente oferecem soluções equivalentes e integradas dentro de seu próprio ecossistema. Por exemplo, o runtime de containers ECS da AWS oferecem integração nativa de logs via CloudWatch e métricas/traces via OpenTelemetry.
+
+Configurar todo o wiring de observabilidade entre os componentes da aplicação via [IaC](#iac).
+
+Para Kubernetes, recomenda-se usar Helm Charts com bundles que incluem os componentes já de forma integrada. Exemplos (componentes podem ser usados em conjunto ou isoladamente):
+
+- [Kube Prometheus Stack](https://github.com/prometheus-community/helm-charts/charts/kube-prometheus-stack)
+- [Grafana K8s Monitoring](https://github.com/grafana/k8s-monitoring-helm)
