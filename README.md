@@ -1,5 +1,7 @@
 # Melhoras práticas de DevOps
 
+[🇺🇸 English version here](README.en.md)
+
 ## Índice
 
 - [Melhoras práticas de DevOps](#melhoras-práticas-de-devops)
