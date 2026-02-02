@@ -38,11 +38,13 @@ Para respositórios Git de [IaC](#iac), não usar branches separados para ambien
 
 ## Containers
 
-Todo o código deve ser containerizado. Isto garante que ele seja executado de forma consistente, seja localmente ou nos diferentes ambientes.
+Todo o código deve ser containerizado. Isto garante que ele seja executado de forma consistente, seja localmente ou nos diferentes ambientes. A definição do Dockerfile deve ser mantida junto com o código da aplicação.
 
-A definição do Dockerfile deve ser mantida junto com o código da aplicação. Via CI/CD (GitHub Actions, GitLab CI, etc.), automatizar a criação de tags de imagens quando tags do repositório Git forem criadas. Assim as imagens ficam com tags sincronizadas com o código.
+### Versionamento e tags
 
-Usar o conceito de Semantic Versioning (<https://semver.org/>) para a criação de tags de imagens.
+Via CI/CD (GitHub Actions, GitLab CI, etc.), automatizar a criação de tags de imagens quando tags do repositório Git forem criadas. Assim as imagens ficam com tags sincronizadas com o código.
+
+Usar o conceito de Semantic Versioning (<https://semver.org/>) para a criação de tags do repositório.
 
 Usar a convenção <https://www.conventionalcommits.org/> para commit messages. É possível, via GitHub Actions, automatizar a criação de tags de imagens e Changelogs quando commits forem criados. Exemplos:
 
@@ -95,3 +97,45 @@ Nunca manter segredos em código fonte. Opções para manutenção de segredos:
 Via [IaC](#iac), configurar os containers para que os segredos sejam injetados como variáveis de ambiente e acessa-los dessa forma via código da aplicação.
 
 Montar um esquema de rotação dos segredos, usando a automação do IaC para sincronizar com as aplicações.
+
+## DR (Disaster Recovery)
+
+Dados persistentes podem vir de bancos de dados, file systems ou object storage.
+
+### Bancos de dados
+
+Backups full de bancos de dados devem ser feitos segundo um agendamento automático e uma política de retenção também automatizada. Por exemplo:
+
+- 3 últimos backups diários
+- 2 últimos backups semanais
+- 2 últimos backups mensais
+- 5 últimos backups anuais
+
+O destino dos backups deve ser um storage com presença em ao menos uma localidade geográfica diferente do banco de dados. Por exemplo, um bucket S3 multi-zonas.
+
+O conteúdo dos backups deve ser protegido por credenciais separadas daquelas usadas dentro do ambiente de bancos de dados. Por exemplo, com o uso de [versionamento em buckets S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html), pode-se configurar uma credencial com acesso somente à versão corrente (para o agente de backup residente no banco ou no ambiente de produção) e outra, separada e inacessível pelo ambiente de produção, com acesso a versões anteriores (para a recuperação).
+
+Desejável complementar com backups de logs, por exemplo, com log shipping a cada 5 minutos. Com isso o RPO (Recovery Point Objective) pode ser reduzido para minutos.
+
+### File systems
+
+Não é desejável o uso de file systems para dados persistentes, pois compromete arquiteturas modernas de software como [12 Factor App](https://12factor.net/). Se inevitável, seguir conceitos semelhantes aos de [Bancos de dados](#bancos-de-dados). Para arquivos de mídia como imagens, vídeos, etc., usar object storage.
+
+### Object storage
+
+Configurar object storage como multi-zonas para garantir alta disponibilidade. Usar [versionamento](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html) para garantir que os dados persistidos sejam protegidos contra perda ou corrupção e configurar credenciais separadas para o ambiente de execução e para o ambiente de backup, de modo que o ambiente de produção não tenha acesso a versões anteriores do bucket, garantindo maior proteção para eventual recuperação.
+
+### Drills de recuperação
+
+Deve-se executar periodicamente (sugestão: trimestral ou semestral) um drill de recuperação. Pode-se usar o ambiente de Staging para isto. Executar os testes funcionais de promoção à produção para validar a recuperação.
+
+## Escalabilidade
+
+Deve-se usar a arquitetura [12 Factor App](https://12factor.net/) para garantir que a aplicação seja escalável. Os seguintes componentes são usados para montar esta arquitetura:
+
+- Load balancer: distribui acesso entre réplicas
+- Autoscaling: usa um trigger como fila, requests por segundo, etc. para aumentar/diminuir automaticamente o número de réplicas
+
+### Escalabilidade de bancos de dados
+
+Para bancos de dados, usar réplicas de leitura para distribuir a carga. Quando se tornar necessário, usar componentes de otimização de conexão, como [PgBouncer](https://www.pgbouncer.org/) para PostgreSQL ou [ProxySQL](https://proxysql.com/) para MySQL.
